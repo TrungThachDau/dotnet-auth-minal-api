@@ -5,7 +5,7 @@ using dotnet_auth.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("RDS")));
 // Add OpenAPI services to the container
 builder.Services.AddOpenApi();
 // Add API explorer and Swagger generation services
