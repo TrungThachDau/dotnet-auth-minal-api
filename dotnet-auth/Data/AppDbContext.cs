@@ -1,3 +1,4 @@
+using dotnet_auth.Models;
 using Microsoft.EntityFrameworkCore;
 
 public class AppDbContext : DbContext
