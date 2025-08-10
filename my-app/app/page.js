@@ -1,11 +1,12 @@
-import Image from "next/image";
-import {Button} from "antd"
+"use server";
 
-export default function Home() {
+import HomeTemplate from "./HomeTemplate";
+import TableComponent from "./Table";
+
+export default async function Home() {
   return (
-    <>
-    
-      <Button type="primary">Ok</Button>
-    </>
+    <HomeTemplate>
+      <TableComponent />
+    </HomeTemplate>
   );
 }

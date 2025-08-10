@@ -2,53 +2,87 @@
 using Microsoft.EntityFrameworkCore;
 using dotnet_auth.Models;
 using Microsoft.Extensions.Configuration;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using System.Text;
 
 namespace dotnet_auth.Services
 {
   public class AuthService : IAuthService
   {
     private readonly AppDbContext _context;
-    private readonly IConfiguration _configuration;
+    private readonly string _issuer;
+    private readonly string _audience;
+    private readonly SigningCredentials _signingCreds;
+    private readonly TimeSpan _tokenLifetime;
+    private static readonly JwtSecurityTokenHandler _tokenHandler = new();
 
     public AuthService(AppDbContext context, IConfiguration configuration)
     {
       _context = context;
-      _configuration = configuration;
+
+      // Cache config & signing materials to avoid re-reading/allocating each call
+      var secret = configuration["Jwt:Secret"] ?? "2a+S0N1gEls4FnqjZbBYjdEHzXp9oqTLUpoxZcZiZE0=";
+      _issuer = configuration["Jwt:Issuer"] ?? "android17x.com";
+      _audience = configuration["Jwt:Audience"] ?? "android17x.com";
+
+      // If your secret is Base64, replace with Convert.FromBase64String(secret)
+      var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+      _signingCreds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+      var lifetimeMinutes = int.TryParse(configuration["Jwt:ExpiresMinutes"], out var m)
+        ? m
+        : 60; // default 60 minutes
+      _tokenLifetime = TimeSpan.FromMinutes(lifetimeMinutes);
     }
 
 
-    public Task<string?> SignInAsync(string username, string password)
+    public async Task<string?> SignInAsync(string username, string password)
     {
-      // TODO: Validate username & password with DB
-      // Dummy: always success
-      var isValid = true;
-      if (!isValid) return Task.FromResult<string?>(null);
-
-      // JWT claims
-      var claims = new[]
+      // Fast-fail invalid input
+      if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
       {
-          new System.Security.Claims.Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub, username),
-          new System.Security.Claims.Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        return null;
+      }
+
+      // Query minimal fields, no tracking for read-only
+      var user = await _context.Users
+        .AsNoTracking()
+        .Where(u => u.Name == username)
+        .Select(u => new { u.Id, u.Name, u.Email, u.Password })
+        .SingleOrDefaultAsync();
+
+      // TODO: Replace plain-text comparison with hashed password verification
+      if (user is null || user.Password != password)
+      {
+        return null;
+      }
+
+      var now = DateTime.UtcNow;
+      var claims = new List<Claim>
+      {
+        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        new Claim(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+        new Claim(ClaimTypes.Name, user.Name)
       };
+      if (!string.IsNullOrWhiteSpace(user.Email))
+      {
+        claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+      }
 
-      // Get secret from config
-      var secret = _configuration["Jwt:Secret"] ?? "2a+S0N1gEls4FnqjZbBYjdEHzXp9oqTLUpoxZcZiZE0=";
-      var issuer = _configuration["Jwt:Issuer"] ?? "android17x.com";
-      var audience = _configuration["Jwt:Audience"] ?? "android17x.com";
-
-      var key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(secret));
-      var creds = new Microsoft.IdentityModel.Tokens.SigningCredentials(key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256);
-
-      var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
-          issuer: issuer,
-          audience: audience,
-          claims: claims,
-          expires: DateTime.UtcNow.AddHours(1),
-          signingCredentials: creds
+      var token = new JwtSecurityToken(
+        issuer: _issuer,
+        audience: _audience,
+        claims: claims,
+        notBefore: now,
+        expires: now.Add(_tokenLifetime),
+        signingCredentials: _signingCreds
       );
 
-      var tokenString = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token);
-      return Task.FromResult<string?>(tokenString);
+      var tokenString = _tokenHandler.WriteToken(token);
+      return tokenString;
     }
 
     public async Task<IEnumerable<User>> GetAllUsersAsync()
