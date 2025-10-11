@@ -1,8 +1,5 @@
 using dotnet_auth.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
 
 namespace dotnet_auth.Endpoints
 {
@@ -10,6 +7,9 @@ namespace dotnet_auth.Endpoints
   {
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
+      var config = app.ServiceProvider.GetRequiredService<IConfiguration>();
+      var tokenLifetimeMinutes = int.TryParse(config["Jwt:ExpiresMinutes"], out var m) ? m : 60;
+
       app.MapPost("/auth/sign-in", async ([FromServices] IAuthService authService, HttpContext http, [FromBody] LoginRequest login) =>
       {
         var token = await authService.SignInAsync(login.Username, login.Password);
@@ -20,21 +20,31 @@ namespace dotnet_auth.Endpoints
           HttpOnly = true,
           Secure = true,
           SameSite = SameSiteMode.Strict,
-          Expires = DateTimeOffset.UtcNow.AddHours(1)
+          Expires = DateTimeOffset.UtcNow.AddMinutes(tokenLifetimeMinutes)
         });
 
         return Results.Ok(new { token });
       }).WithName("SignIn");
 
-      // ...existing code...
+      app.MapPost("/auth/register", async ([FromServices] IAuthService authService, [FromBody] RegisterRequest register) =>
+      {
+        var success = await authService.RegisterAsync(register.Username, register.Email, register.Password);
+        if (!success)
+        {
+          return Results.BadRequest(new { message = "User already exists" });
+        }
+
+        return Results.Ok(new { message = "User registered successfully" });
+      }).WithName("Register");
+
       app.MapGet("/users", async ([FromServices] IAuthService authService) =>
       {
         return await authService.GetAllUsersAsync();
-      }).WithName("GetAllUsers");
+      }).WithName("GetAllUsers").RequireAuthorization();
     }
 
-    // Định nghĩa record cho request body (đặt ngoài method)
     public record LoginRequest(string Username, string Password);
+    public record RegisterRequest(string Username, string Email, string Password);
   }
 }
 

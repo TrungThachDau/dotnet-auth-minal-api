@@ -1,75 +1,101 @@
 using Microsoft.EntityFrameworkCore;
 using dotnet_auth.Endpoints;
 using dotnet_auth.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Thêm cấu hình CORS cho phép frontend localhost:3000
+// Configure CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
-        policy => policy.WithOrigins("http://localhost:3000")
-                        .AllowAnyHeader()
-                        .AllowAnyMethod()
-                        .AllowCredentials());
+        policy =>
+        {
+            if (builder.Environment.IsDevelopment())
+            {
+                policy.WithOrigins("http://localhost:3000")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            }
+            else
+            {
+                // Configure specific origins for production
+                policy.WithOrigins(builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            }
+        });
 });
 
+// Register DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("RDS")));
-// Add OpenAPI services to the container
-builder.Services.AddOpenApi();
-// Add API explorer and Swagger generation services
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-// Register WeatherForecast service
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Localhost")));
+
+// Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// Add OpenAPI and Swagger services
+builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// Register the AppDbContext
-builder.Services.AddScoped<AppDbContext>();
+// Configure JWT Authentication
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "2a+S0N1gEls4FnqjZbBYjdEHzXp9oqTLUpoxZcZiZE0=";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "android17x.com";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "android17x.com";
 
-// Add authorization services
-builder.Services.AddAuthorization();
-
-builder.Services.AddAuthentication("JwtCookie")
-    .AddCookie("JwtCookie", options =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        options.Cookie.Name = "jwt";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Events.OnRedirectToLogin = context =>
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            context.Response.StatusCode = 401;
-            return Task.CompletedTask;
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
+
+        // Read token from cookie if not in Authorization header
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Cookies.ContainsKey("jwt"))
+                {
+                    context.Token = context.Request.Cookies["jwt"];
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
-// Build the application
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
-// Sử dụng CORS policy cho toàn bộ app
+// Use CORS
 app.UseCors("AllowFrontend");
+
+// Configure development-only middleware
 if (app.Environment.IsDevelopment())
 {
-    // Map OpenAPI endpoints in development environment
     app.MapOpenApi();
-}
-if (app.Environment.IsDevelopment())
-{
-    // Enable Swagger and Swagger UI in development environment
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Enable HTTPS redirection
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map minimal API endpoints
-
 app.MapAuthEndpoints();
 
-// Run the application
 app.Run();
 

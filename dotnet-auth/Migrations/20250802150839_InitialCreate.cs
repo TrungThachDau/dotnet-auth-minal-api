@@ -25,6 +25,42 @@ namespace dotnet_auth.Migrations
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
                 });
+
+            // Seed data với password đã hash
+            migrationBuilder.InsertData(
+                table: "Users",
+                columns: new[] { "Id", "Name", "Email", "Password", "CreatedAt" },
+                values: new object[,]
+                {
+                    {
+                        "1",
+                        "admin",
+                        "admin@example.com",
+                        BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                        DateTime.UtcNow
+                    },
+                    {
+                        "2",
+                        "john_doe",
+                        "john@example.com",
+                        BCrypt.Net.BCrypt.HashPassword("John@123"),
+                        DateTime.UtcNow
+                    },
+                    {
+                        "3",
+                        "jane_smith",
+                        "jane@example.com",
+                        BCrypt.Net.BCrypt.HashPassword("Jane@123"),
+                        DateTime.UtcNow
+                    },
+                    {
+                        "4",
+                        "testuser",
+                        "test@example.com",
+                        BCrypt.Net.BCrypt.HashPassword("Test@123"),
+                        DateTime.UtcNow
+                    }
+                });
         }
 
         /// <inheritdoc />

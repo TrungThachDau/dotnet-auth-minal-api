@@ -6,6 +6,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
+using BCrypt.Net;
 
 namespace dotnet_auth.Services
 {
@@ -53,23 +54,30 @@ namespace dotnet_auth.Services
         .Select(u => new { u.Id, u.Name, u.Email, u.Password })
         .SingleOrDefaultAsync();
 
-      // TODO: Replace plain-text comparison with hashed password verification
-      if (user is null || user.Password != password)
+      // Verify hashed password using BCrypt
+      if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.Password))
       {
         return null;
       }
 
+      // Generate JWT token for authenticated user
+      return GenerateJwtToken(user.Id, user.Name, user.Email);
+    }
+
+    private string GenerateJwtToken(string userId, string userName, string? userEmail)
+    {
       var now = DateTime.UtcNow;
       var claims = new List<Claim>
       {
-        new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+        new Claim(JwtRegisteredClaimNames.Sub, userId),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         new Claim(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-        new Claim(ClaimTypes.Name, user.Name)
+        new Claim(ClaimTypes.Name, userName)
       };
-      if (!string.IsNullOrWhiteSpace(user.Email))
+      
+      if (!string.IsNullOrWhiteSpace(userEmail))
       {
-        claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+        claims.Add(new Claim(JwtRegisteredClaimNames.Email, userEmail));
       }
 
       var token = new JwtSecurityToken(
@@ -81,13 +89,48 @@ namespace dotnet_auth.Services
         signingCredentials: _signingCreds
       );
 
-      var tokenString = _tokenHandler.WriteToken(token);
-      return tokenString;
+      return _tokenHandler.WriteToken(token);
     }
 
     public async Task<IEnumerable<User>> GetAllUsersAsync()
     {
       return await _context.Users.ToListAsync();
+    }
+
+    public async Task<bool> RegisterAsync(string username, string email, string password)
+    {
+      // Validate input
+      if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+      {
+        return false;
+      }
+
+      // Check if user already exists
+      var existingUser = await _context.Users
+        .AsNoTracking()
+        .AnyAsync(u => u.Name == username || u.Email == email);
+
+      if (existingUser)
+      {
+        return false;
+      }
+
+      // Hash the password using BCrypt with work factor 12
+      var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
+
+      var newUser = new User
+      {
+        Id = Guid.NewGuid().ToString(),
+        Name = username,
+        Email = email,
+        Password = hashedPassword,
+        CreatedAt = DateTime.UtcNow
+      };
+
+      _context.Users.Add(newUser);
+      await _context.SaveChangesAsync();
+
+      return true;
     }
 
   }
