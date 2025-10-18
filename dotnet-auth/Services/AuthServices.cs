@@ -39,12 +39,12 @@ namespace dotnet_auth.Services
     }
 
 
-    public async Task<string?> SignInAsync(string username, string password)
+    public async Task<AuthResult> SignInAsync(string username, string password)
     {
       // Fast-fail invalid input
       if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
       {
-        return null;
+        return new AuthResult(false, null, "Invalid username or password");
       }
 
       // Query minimal fields, no tracking for read-only
@@ -57,11 +57,12 @@ namespace dotnet_auth.Services
       // Verify hashed password using BCrypt
       if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.Password))
       {
-        return null;
+        return new AuthResult(false, null, "Invalid username or password");
       }
 
       // Generate JWT token for authenticated user
-      return GenerateJwtToken(user.Id, user.Name, user.Email);
+      var token = GenerateJwtToken(user.Id, user.Name, user.Email);
+      return new AuthResult(true, token, null);
     }
 
     private string GenerateJwtToken(string userId, string userName, string? userEmail)
@@ -97,12 +98,12 @@ namespace dotnet_auth.Services
       return await _context.Users.ToListAsync();
     }
 
-    public async Task<bool> RegisterAsync(string username, string email, string password)
+    public async Task<RegisterResult> RegisterAsync(string username, string email, string password)
     {
       // Validate input
       if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
       {
-        return false;
+        return new RegisterResult(false, "Invalid input data");
       }
 
       // Check if user already exists
@@ -112,7 +113,7 @@ namespace dotnet_auth.Services
 
       if (existingUser)
       {
-        return false;
+        return new RegisterResult(false, "User already exists");
       }
 
       // Hash the password using BCrypt with work factor 12
@@ -130,7 +131,7 @@ namespace dotnet_auth.Services
       _context.Users.Add(newUser);
       await _context.SaveChangesAsync();
 
-      return true;
+      return new RegisterResult(true, null);
     }
 
   }

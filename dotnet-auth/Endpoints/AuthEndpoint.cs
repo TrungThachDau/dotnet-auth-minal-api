@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace dotnet_auth.Endpoints
 {
-  public static class AuthEndPoint
+  public static class AuthEndpoint
   {
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
@@ -12,10 +12,14 @@ namespace dotnet_auth.Endpoints
 
       app.MapPost("/auth/sign-in", async ([FromServices] IAuthService authService, HttpContext http, [FromBody] LoginRequest login) =>
       {
-        var token = await authService.SignInAsync(login.Username, login.Password);
-        if (string.IsNullOrEmpty(token)) return Results.Unauthorized();
+        var result = await authService.SignInAsync(login.Username, login.Password);
+        
+        if (!result.Success)
+        {
+          return Results.Unauthorized();
+        }
 
-        http.Response.Cookies.Append("jwt", token, new CookieOptions
+        http.Response.Cookies.Append("jwt", result.Token!, new CookieOptions
         {
           HttpOnly = true,
           Secure = true,
@@ -23,15 +27,16 @@ namespace dotnet_auth.Endpoints
           Expires = DateTimeOffset.UtcNow.AddMinutes(tokenLifetimeMinutes)
         });
 
-        return Results.Ok(new { token });
+        return Results.Ok(new { token = result.Token });
       }).WithName("SignIn");
 
       app.MapPost("/auth/register", async ([FromServices] IAuthService authService, [FromBody] RegisterRequest register) =>
       {
-        var success = await authService.RegisterAsync(register.Username, register.Email, register.Password);
-        if (!success)
+        var result = await authService.RegisterAsync(register.Username, register.Email, register.Password);
+        
+        if (!result.Success)
         {
-          return Results.BadRequest(new { message = "User already exists" });
+          return Results.BadRequest(new { message = result.ErrorMessage });
         }
 
         return Results.Ok(new { message = "User registered successfully" });

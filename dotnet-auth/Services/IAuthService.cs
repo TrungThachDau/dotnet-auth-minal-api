@@ -6,10 +6,11 @@ namespace dotnet_auth.Services
 {
   public interface IAuthService
   {
-    Task<string?> SignInAsync(string username, string password);
-    Task<bool> RegisterAsync(string username, string email, string password);
-    //Get all users
+    Task<AuthResult> SignInAsync(string username, string password);
+    Task<RegisterResult> RegisterAsync(string username, string email, string password);
     Task<IEnumerable<User>> GetAllUsersAsync();
-
   }
+
+  public record AuthResult(bool Success, string? Token, string? ErrorMessage);
+  public record RegisterResult(bool Success, string? ErrorMessage);
 }
