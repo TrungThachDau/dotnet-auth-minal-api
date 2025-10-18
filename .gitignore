@@ -1,3 +1,8 @@
 dotnet-auth/bin/
 dotnet-auth/obj/
 /.idea
+
+# Environment variables - KHÔNG push lên Git
+.env
+.env.local
+.env.production

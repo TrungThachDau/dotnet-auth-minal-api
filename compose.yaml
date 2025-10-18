@@ -1,0 +1,28 @@
+﻿services:
+  dotnet-auth:
+    image: dotnet-auth
+    build:
+      context: .
+      dockerfile: dotnet-auth/Dockerfile
+    ports:
+      - "5263:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      # Database connection
+      - ConnectionStrings__Railway=${DATABASE_URL:-Host=localhost;Database=postgres;Username=postgres;Password=postgres}
+      # JWT Settings
+      - Jwt__Secret=${JWT_SECRET:-2a+S0N1gEls4FnqjZbBYjdEHzXp9oqTLUpoxZcZiZE0=}
+      - Jwt__Issuer=${JWT_ISSUER:-android17x.com}
+      - Jwt__Audience=${JWT_AUDIENCE:-android17x.com}
+      - Jwt__ExpiresMinutes=${JWT_EXPIRES_MINUTES:-60}
+      # CORS
+      - AllowedOrigins__0=${ALLOWED_ORIGIN:-http://localhost:3000}
+    deploy:
+      resources:
+        limits:
+          memory: 256M  
+        reservations:
+          memory: 64M  
+    restart: unless-stopped
+
