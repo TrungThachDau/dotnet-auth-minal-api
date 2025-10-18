@@ -27,6 +27,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Railway")));
 
+// Configure JWT Settings
+var jwtSettings = new JwtSettings();
+builder.Configuration.GetSection("Jwt").Bind(jwtSettings);
+builder.Services.AddSingleton(jwtSettings);
+
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -36,10 +41,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Configure JWT Authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -49,9 +50,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+            ValidIssuer = jwtSettings.Issuer,
+            ValidAudience = jwtSettings.Audience,
+            IssuerSigningKey = jwtSettings.GetSymmetricSecurityKey()
         };
 
         // Read token from cookie if not in Authorization header

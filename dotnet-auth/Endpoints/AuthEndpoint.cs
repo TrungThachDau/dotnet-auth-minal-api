@@ -30,7 +30,7 @@ namespace dotnet_auth.Endpoints
                 return Results.Ok(new { token = result.Token });
             }).WithName("SignIn");
 
-            app.MapPost("/auth/register", async ([FromServices] IAuthService authService, [FromBody] RegisterRequest register) =>
+            app.MapPost("/auth/sign-up", async ([FromServices] IAuthService authService, [FromBody] RegisterRequest register) =>
             {
                 var result = await authService.RegisterAsync(register.Username, register.Email, register.Password);
 

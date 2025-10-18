@@ -1,41 +1,28 @@
 
 using Microsoft.EntityFrameworkCore;
 using dotnet_auth.Models;
-using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
-using BCrypt.Net;
+
 
 namespace dotnet_auth.Services
 {
     public class AuthService : IAuthService
     {
         private readonly AppDbContext _context;
-        private readonly string _issuer;
-        private readonly string _audience;
+        private readonly JwtSettings _jwtSettings;
         private readonly SigningCredentials _signingCreds;
-        private readonly TimeSpan _tokenLifetime;
         private static readonly JwtSecurityTokenHandler _tokenHandler = new();
 
-        public AuthService(AppDbContext context, IConfiguration configuration)
+        public AuthService(AppDbContext context, JwtSettings jwtSettings)
         {
             _context = context;
-
-            // Cache config & signing materials to avoid re-reading/allocating each call
-            var secret = configuration["Jwt:Secret"] ?? "2a+S0N1gEls4FnqjZbBYjdEHzXp9oqTLUpoxZcZiZE0=";
-            _issuer = configuration["Jwt:Issuer"] ?? "android17x.com";
-            _audience = configuration["Jwt:Audience"] ?? "android17x.com";
-
-            // If your secret is Base64, replace with Convert.FromBase64String(secret)
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-            _signingCreds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var lifetimeMinutes = int.TryParse(configuration["Jwt:ExpiresMinutes"], out var m)
-              ? m
-              : 60; // default 60 minutes
-            _tokenLifetime = TimeSpan.FromMinutes(lifetimeMinutes);
+            _jwtSettings = jwtSettings;
+            _signingCreds = new SigningCredentials(
+                jwtSettings.GetSymmetricSecurityKey(), 
+                SecurityAlgorithms.HmacSha256);
         }
 
 
@@ -69,12 +56,12 @@ namespace dotnet_auth.Services
         {
             var now = DateTime.UtcNow;
             var claims = new List<Claim>
-      {
-        new Claim(JwtRegisteredClaimNames.Sub, userId),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
-        new Claim(ClaimTypes.Name, userName)
-      };
+              {
+                new Claim(JwtRegisteredClaimNames.Sub, userId),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+                new Claim(ClaimTypes.Name, userName)
+              };
 
             if (!string.IsNullOrWhiteSpace(userEmail))
             {
@@ -82,11 +69,11 @@ namespace dotnet_auth.Services
             }
 
             var token = new JwtSecurityToken(
-              issuer: _issuer,
-              audience: _audience,
+              issuer: _jwtSettings.Issuer,
+              audience: _jwtSettings.Audience,
               claims: claims,
               notBefore: now,
-              expires: now.Add(_tokenLifetime),
+              expires: now.AddMinutes(_jwtSettings.ExpiresMinutes),
               signingCredentials: _signingCreds
             );
 
