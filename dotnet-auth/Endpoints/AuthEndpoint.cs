@@ -9,15 +9,12 @@ namespace dotnet_auth.Endpoints
         {
             var config = app.ServiceProvider.GetRequiredService<IConfiguration>();
             var tokenLifetimeMinutes = int.TryParse(config["Jwt:ExpiresMinutes"], out var m) ? m : 60;
-            
-            app.MapGet("/", () =>
+
+            app.MapGet("/", () => Results.Ok(new
             {
-                return Results.Ok(new
-                {
-                    status = "Server is running.",
-                    time = DateTime.UtcNow.AddMinutes(tokenLifetimeMinutes)
-                });
-            }).WithName("HealthCheck");
+                status = "Server is running.",
+                time = DateTime.UtcNow.AddMinutes(tokenLifetimeMinutes)
+            })).WithName("HealthCheck");
             app.MapPost("/auth/sign-in", async ([FromServices] IAuthService authService, HttpContext http, [FromBody] LoginRequest login) =>
             {
                 var result = await authService.SignInAsync(login.Username, login.Password);
@@ -42,22 +39,23 @@ namespace dotnet_auth.Endpoints
             {
                 var result = await authService.RegisterAsync(register.Username, register.Email, register.Password);
 
-                if (!result.Success)
-                {
-                    return Results.BadRequest(new { message = result.ErrorMessage });
-                }
-
-                return Results.Ok(new { message = "User registered successfully" });
+                return !result.Success ? Results.BadRequest(
+                    new { message = result.ErrorMessage }) :
+                    Results.Ok(new
+                    {
+                        message = "User registered successfully"
+                    });
             }).WithName("Register");
 
-            app.MapGet("/users", async ([FromServices] IAuthService authService) =>
-            {
-                return await authService.GetAllUsersAsync();
-            }).WithName("GetAllUsers").RequireAuthorization();
+            app.MapGet("/users", async ([FromServices] IAuthService authService)
+                => await authService.GetAllUsersAsync())
+                .WithName("GetAllUsers")
+                .RequireAuthorization();
         }
 
-        public record LoginRequest(string Username, string Password);
-        public record RegisterRequest(string Username, string Email, string Password);
+        private record LoginRequest(string Username, string Password);
+
+        private record RegisterRequest(string Username, string Email, string Password);
     }
 }
 

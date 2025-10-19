@@ -1,7 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using dotnet_auth.Endpoints;
 using dotnet_auth.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,12 +13,12 @@ builder.Services.AddCors(options =>
         policy =>
         {
             var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-                ?? new[] { "http://localhost:3000" };
+                                 ?? ["http://localhost:3000"];
 
             policy.WithOrigins(allowedOrigins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
         });
 });
 
@@ -59,10 +59,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnMessageReceived = context =>
             {
-                if (context.Request.Cookies.ContainsKey("jwt"))
-                {
-                    context.Token = context.Request.Cookies["jwt"];
-                }
+                if (context.Request.Cookies.ContainsKey("jwt")) context.Token = context.Request.Cookies["jwt"];
                 return Task.CompletedTask;
             }
         };
@@ -81,10 +78,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // Configure development-only middleware
-if (app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+if (app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -92,4 +86,3 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 
 app.Run();
-
