@@ -9,7 +9,15 @@ namespace dotnet_auth.Endpoints
         {
             var config = app.ServiceProvider.GetRequiredService<IConfiguration>();
             var tokenLifetimeMinutes = int.TryParse(config["Jwt:ExpiresMinutes"], out var m) ? m : 60;
-
+            
+            app.MapGet("/", () =>
+            {
+                return Results.Ok(new
+                {
+                    status = "Server is running.",
+                    time = DateTime.UtcNow.AddMinutes(tokenLifetimeMinutes)
+                });
+            }).WithName("HealthCheck");
             app.MapPost("/auth/sign-in", async ([FromServices] IAuthService authService, HttpContext http, [FromBody] LoginRequest login) =>
             {
                 var result = await authService.SignInAsync(login.Username, login.Password);

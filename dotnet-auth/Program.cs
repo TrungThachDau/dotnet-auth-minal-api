@@ -3,7 +3,6 @@ using dotnet_auth.Endpoints;
 using dotnet_auth.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
