@@ -37,7 +37,7 @@ namespace dotnet_auth.Endpoints
 
             app.MapPost("/auth/sign-up", async ([FromServices] IAuthService authService, [FromBody] RegisterRequest register) =>
             {
-                var result = await authService.RegisterAsync(register.Username, register.Email, register.Password);
+                var result = await authService.RegisterAsync(register.Username, register.Password);
 
                 return !result.Success ? Results.BadRequest(
                     new { message = result.ErrorMessage }) :

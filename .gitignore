@@ -6,3 +6,6 @@ dotnet-auth/obj/
 .env
 .env.local
 .env.production
+/.vs
+/.vs
+*.v2

@@ -24,7 +24,7 @@ builder.Services.AddCors(options =>
 
 // Register DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Railway")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Supabase")));
 
 // Configure JWT Settings
 var jwtSettings = new JwtSettings();

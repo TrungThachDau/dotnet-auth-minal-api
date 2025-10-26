@@ -24,16 +24,16 @@ public class AuthService(AppDbContext context, JwtSettings jwtSettings) : IAuthS
         // Query minimal fields, no tracking for read-only
         var user = await context.Users
             .AsNoTracking()
-            .Where(u => u.Name == username)
-            .Select(u => new { u.Id, u.Name, u.Email, u.Password })
+            .Where(u => u.username == username)
+            .Select(u => new { Id = u.id, u.name, u.username, u.password })
             .SingleOrDefaultAsync();
 
         // Verify hashed password using BCrypt
-        if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.Password))
+        if (user is null || !BCrypt.Net.BCrypt.Verify(password, user.password))
             return new AuthResult(false, null, "Invalid username or password");
 
         // Generate JWT token for authenticated user
-        var token = GenerateJwtToken(user.Id, user.Name, user.Email);
+        var token = GenerateJwtToken(user.Id.ToString(), user.username);
         return new AuthResult(true, token, null);
     }
 
@@ -42,16 +42,16 @@ public class AuthService(AppDbContext context, JwtSettings jwtSettings) : IAuthS
         return await context.Users.ToListAsync();
     }
 
-    public async Task<RegisterResult> RegisterAsync(string username, string email, string password)
+    public async Task<RegisterResult> RegisterAsync(string username, string password)
     {
         // Validate input
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(email) ||
+        if (string.IsNullOrWhiteSpace(username)  ||
             string.IsNullOrWhiteSpace(password)) return new RegisterResult(false, "Invalid input data");
 
         // Check if user already exists
         var existingUser = await context.Users
             .AsNoTracking()
-            .AnyAsync(u => u.Name == username || u.Email == email);
+            .AnyAsync(u => u.username == username);
 
         if (existingUser) return new RegisterResult(false, "User already exists");
 
@@ -60,10 +60,8 @@ public class AuthService(AppDbContext context, JwtSettings jwtSettings) : IAuthS
 
         var newUser = new User
         {
-            Id = Guid.NewGuid().ToString(),
-            Name = username,
-            Email = email,
-            Password = hashedPassword,
+            username = username,
+            password = hashedPassword,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -73,7 +71,7 @@ public class AuthService(AppDbContext context, JwtSettings jwtSettings) : IAuthS
         return new RegisterResult(true, null);
     }
 
-    private string GenerateJwtToken(string userId, string userName, string? userEmail)
+    private string GenerateJwtToken(string userId, string userName)
     {
         var now = DateTime.UtcNow;
         var claims = new List<Claim>
@@ -85,7 +83,7 @@ public class AuthService(AppDbContext context, JwtSettings jwtSettings) : IAuthS
             new(ClaimTypes.Name, userName)
         };
 
-        if (!string.IsNullOrWhiteSpace(userEmail)) claims.Add(new Claim(JwtRegisteredClaimNames.Email, userEmail));
+        if (!string.IsNullOrWhiteSpace(userName)) claims.Add(new Claim(JwtRegisteredClaimNames.Email, userName));
 
         var token = new JwtSecurityToken(
             jwtSettings.Issuer,
