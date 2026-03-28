@@ -1,0 +1,75 @@
+﻿services:
+  gateway:
+    image: gateway
+    build:
+      context: .
+      dockerfile: Gateway/Dockerfile
+    ports:
+      - "5270:5270"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    restart: unless-stopped
+    networks:
+      - default  
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    networks:
+      - default
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins_home:/var/jenkins_home
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    networks:
+      - default  
+
+  auth-service:
+    image: auth-service
+    build:
+      context: .
+      dockerfile: Auth/Dockerfile
+    ports:
+      - "5263:5263"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5263
+      # Database connection
+      - ConnectionStrings__Railway=${DATABASE_URL:-}
+      # JWT Settings
+      - Jwt__Secret=${JWT_SECRET:-}
+      - Jwt__Issuer=${JWT_ISSUER:-your-app}
+      - Jwt__Audience=${JWT_AUDIENCE:-your-app}
+      - Jwt__ExpiresMinutes=${JWT_EXPIRES_MINUTES:-60}
+      # CORS
+      - AllowedOrigins__0=${ALLOWED_ORIGIN:-http://localhost:3000}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    restart: unless-stopped
+    networks:
+      - default  
+networks:
+  default:
+    driver: bridge
+volumes:
+  jenkins_home:

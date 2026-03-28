@@ -1,2 +1,13 @@
-dotnet-auth/bin/
-dotnet-auth/obj/
+Auth/bin/
+Gateway/bin/
+Gateway/obj/
+Auth/obj/
+/.idea
+
+# Environment variables - KHÔNG push lên Git
+.env
+.env.local
+.env.production
+/.vs
+/.vs
+*.v2
